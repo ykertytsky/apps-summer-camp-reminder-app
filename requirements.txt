@@ -1,3 +1,4 @@
 telethon 
 tinydb
 python-dotenv
+python-telegram-bot
