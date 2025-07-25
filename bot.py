@@ -2,9 +2,31 @@ from user import User
 import datetime
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+import random
+
+def load_quotes():
+    result = []
+    with open("quotes.txt", "r", encoding="utf-8") as file:
+        for line in file:
+            parts = [p.strip() for p in line.strip().split("~") if p.strip()]
+            if len(parts) >= 2:
+                result.append({"quote": parts[0], "author": parts[1]})
+            elif len(parts) == 1:
+                result.append({"quote": parts[0], "author": ""})
+    return result
+
+quotes = load_quotes()
+numbers = 0
+
+def return_one(quotes, number):
+    try:
+        q = quotes[number]
+        return f'"{q["quote"]}" - {q["author"]}'
+    except IndexError:
+        return "Цитату не знайдено."
 
 # Placeholder for TOKEN (replace with your actual bot token from @BotFather)
-TOKEN = "6927808593:AAFkjBYDL3iz20uK6IrBf2bPnODgQkLUq_4"
+TOKEN = "7753729694:AAGZsZeqgN_E7jBSM05oYU8xqQ9QhX8AH8E"
 users = {}  # Dictionary to store user instances with their IDs as keys
 
 # Define conversation states for the reminder process
@@ -133,6 +155,7 @@ Returns: DEADLINE (int) if invalid, ConversationHandler.END if valid - The next 
 Side Effects: Stores the task in the user's task list, schedules a delayed message, and sends a confirmation.
 """
 async def get_deadline(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global numbers
     deadline_str = update.message.text
     try:
         deadline = datetime.datetime.strptime(deadline_str, "%d-%m-%Y %H:%M")
@@ -143,22 +166,15 @@ async def get_deadline(update: Update, context: ContextTypes.DEFAULT_TYPE):
             users[user_id].add_task(reminder["task"], reminder["time"], reminder["deadline"])
             await update.message.reply_text("Нагадування додано!")
             now = datetime.datetime.now()
-
-            # Обчислюємо час виконання завдання
             scheduled_time = reminder["time"]
-
-            # Формуємо повідомлення
-            message = f"Завдання: {reminder['task']}\nЧас виконання: {scheduled_time.strftime('%d.%m.%Y %H:%M')}"
-
-            # Перевіряємо, чи час виконання завдання у майбутньому
+            # Формуємо повідомлення з цитатою
+            quote_msg = return_one(quotes, numbers)
+            numbers += 1
+            message = f"Завдання: {reminder['task']}\nЧас виконання: {scheduled_time.strftime('%d.%m.%Y %H:%M')}\n\n{quote_msg}"
             if scheduled_time <= now:
                 await update.message.reply_text("Час має бути у майбутньому!")
                 return
-
-            # Обчислюємо затримку в секундах
             delay = (scheduled_time - now).total_seconds()
-
-            # Плануємо відправку
             context.job_queue.run_once(send_delayed_message, delay, chat_id=update.effective_chat.id, data=message)
         else:
             await update.message.reply_text("Помилка: користувач не знайдений. Введіть /start для початку роботи.")
@@ -179,6 +195,7 @@ Side Effects: Sends a cancellation message.
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Запис нагадування скасовано.")
     return ConversationHandler.END
+
 
 """
 Function: main
